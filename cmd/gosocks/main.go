@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"gosocks/internal/gosocks"
+	"github.com/nessai1/gosocks/internal/gosocks"
 	"log"
 )
 

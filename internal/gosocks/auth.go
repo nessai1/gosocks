@@ -1,0 +1,91 @@
+package gosocks
+
+import (
+	"fmt"
+	"net"
+)
+
+type AuthMethod int
+
+// Supported auth methods for this proxy
+// TODO: add GSS-API support for compliant implementation
+const (
+	NoAuth      AuthMethod = 0x00
+	Credentials AuthMethod = 0x02
+)
+
+type Client struct {
+	AuthMethod  AuthMethod
+	RemoteAddr  net.Addr
+	Credentials *ClientCredentials // not nil of AuthMethod == Credentials
+}
+
+type ClientCredentials struct {
+	Login    string
+	Password string
+}
+
+func (p *Proxy) handshake(conn net.Conn) (*Client, error) {
+	head := make([]byte, 2)
+	n, err := conn.Read(head)
+
+	if err != nil {
+		return nil, fmt.Errorf("cannot read 2 header bytes: %w", err)
+	}
+
+	if n != 2 {
+		return nil, fmt.Errorf("incorrect header format: read less that 2 bytes (%d)", n)
+	}
+
+	if int(head[0]) != SocksVersion {
+		return nil, fmt.Errorf("incorrect socks version: require %d, got %d", SocksVersion, int(head[0]))
+	}
+
+	methodsCount := int(head[1])
+	if methodsCount <= 0 {
+		return nil, fmt.Errorf("client has no supported auth methods")
+	}
+
+	var supportCredentials, supportNoAuth bool
+	methods := make([]byte, methodsCount)
+	n, err = conn.Read(methods)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read auth methods of client: %w", err)
+	}
+	if n != methodsCount {
+		return nil, fmt.Errorf("incorrect count of read methods: require %d, got %d", methodsCount, n)
+	}
+
+	for _, method := range methods {
+		if AuthMethod(method) == NoAuth {
+			supportNoAuth = true
+		}
+
+		if AuthMethod(method) == Credentials {
+			supportCredentials = true
+		}
+	}
+
+	if p.storage != nil && !supportCredentials {
+		return nil, fmt.Errorf("proxy require auth method, but client doesn't support it")
+	}
+
+	if supportCredentials {
+		// TODO: make auth
+	}
+
+	if supportNoAuth {
+		_, err = conn.Write([]byte{byte(SocksVersion), byte(NoAuth)})
+		if err != nil {
+			return nil, fmt.Errorf("cannot send selected auth method")
+		}
+
+		return &Client{
+			AuthMethod:  NoAuth,
+			RemoteAddr:  conn.RemoteAddr(),
+			Credentials: nil,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("no supported methods by proxy")
+}

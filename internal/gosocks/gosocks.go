@@ -2,9 +2,12 @@ package gosocks
 
 import (
 	"fmt"
+	"github.com/nessai1/gosocks/internal/storage"
 	"go.uber.org/zap"
 	"net"
 )
+
+const SocksVersion int = 5
 
 func ListenAndServe(address string) error {
 
@@ -26,9 +29,13 @@ func ListenAndServe(address string) error {
 	return nil
 }
 
+type UserStorage interface {
+}
+
 type Proxy struct {
 	listener net.Listener
 	logger   *zap.Logger
+	storage  storage.Storage
 }
 
 func (p *Proxy) Listen() error {
@@ -44,6 +51,30 @@ func (p *Proxy) Listen() error {
 }
 
 func (p *Proxy) handleConnection(conn net.Conn) {
-	p.logger.Info("Got new connection", zap.String("remote_address", conn.RemoteAddr().String()))
-	conn.Close()
+	p.logger.Info("Got new client connection", zap.String("remote_address", conn.RemoteAddr().String()))
+
+	p.handleSocks5(conn)
+
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			p.logger.Error("Cannot close client connection", zap.Error(err))
+		}
+	}()
+}
+
+func (p *Proxy) handleSocks5(conn net.Conn) error {
+
+	client, err := p.handshake(conn)
+	if err != nil {
+		p.logger.Error("Cannot handshake with client", zap.String("remote_address", conn.RemoteAddr().String()), zap.Error(err))
+	}
+
+	if client.AuthMethod != Credentials {
+		p.logger.Info("Successful authorized handshake", zap.String("remote_address", client.RemoteAddr.String()), zap.String("login", client.Credentials.Login))
+	} else {
+		p.logger.Info("Successful anon handshake", zap.String("remote_address", client.RemoteAddr.String()))
+	}
+
+	return nil
 }

@@ -1,6 +1,6 @@
-module gosocks
+module github.com/nessai1/gosocks
 
-go 1.22
+go 1.21
 
 require (
 	go.uber.org/multierr v1.11.0 // indirect
