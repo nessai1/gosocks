@@ -6,7 +6,7 @@ import (
 )
 
 type Storage interface {
-	GetClient(ctx context.Context) (*Client, error)
+	GetClient(ctx context.Context, login, password string) (*Client, error)
 	CreateClient(ctx context.Context, login, password string) (*Client, error)
 }
 

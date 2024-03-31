@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"path/filepath"
 )
@@ -53,8 +54,8 @@ func NewSQLiteStorage(storagePath string) (*SQLiteStorage, error) {
 
 func (s *SQLiteStorage) GetClient(ctx context.Context, login, password string) (*Client, error) {
 	hashPassword := s.hashPassword(password)
-
-	err := s.db.QueryRowContext(ctx, "SELECT login, password FROM clients WHERE login = $1 AND password = $2", login, hashPassword).Err()
+	var l, p string
+	err := s.db.QueryRowContext(ctx, "SELECT login, password FROM clients WHERE login = $1 AND password = $2", login, hashPassword).Scan(&l, &p)
 	if err != nil && errors.Is(sql.ErrNoRows, err) {
 		return nil, ErrClientNotFound
 	} else if err != nil {
@@ -62,8 +63,8 @@ func (s *SQLiteStorage) GetClient(ctx context.Context, login, password string) (
 	}
 
 	return &Client{
-		Login:    login,
-		password: hashPassword,
+		Login:    l,
+		password: p,
 	}, nil
 }
 
